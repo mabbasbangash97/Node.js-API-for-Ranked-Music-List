@@ -1,73 +1,39 @@
+const mongoose = require('mongoose');
+const debug = require('debug')('app:startup');
+const config = require('config');
+const morgan = require('morgan');
+const helmet = require('helmet');
+const logger = require('./middleware/logger');
+const authenticator = require('./middleware/authenticator');
+const genres = require('./routes/genres');
+const home = require('./routes/home');
 const express = require('express');
-const Joi = require('joi');
 const app = express();
 
+app.set('view engine', 'pug');
+app.set('views', './views');
+
+mongoose.connect('mongodb://localhost:27017/ranked_music_api')
+    .then(()=> console.log('Connected to MongoDB...'))
+    .catch((err) => err.log('Error', err));
+
 app.use(express.json());
+app.use(express.urlencoded({ extended : true }));
+app.use(express.static('public'));
+app.use(helmet());
+app.use(logger);
+app.use(authenticator);
+app.use('/api/genres', genres);
+app.use('/', home);
 
-const rankedMusic=[
-    {rank : 1, genre : 'Heavy Metal'},
-    {rank : 2, genre : "Rock'n Roll"},
-    {rank : 3, genre : 'Alternative Rock'},
-    {rank : 4, genre : 'Hard Rock'},
-    {rank : 5, genre : 'Classical'},
-    {rank : 6, genre : 'Thrash Metal'},
-    {rank : 7, genre : 'Pop'},
-    {rank : 8, genre : 'Progressive Rock'},
-    {rank : 9, genre : 'Rap'},
-    {rank : 10, genre : 'Grunge'}
-];
+//Configuration => set password before launching to avoid errors!
+// console.log(`Application Name: ${config.get('name')}`);
+// console.log(`Mail Password: ${config.get('password')}`);
 
-app.get('/', (req, res) => {
-    res.send("Welcome To Music Ranking(By Genre) Site!");
-});
-
-app.get('/api/genres', (req, res) =>{
-    res.send(rankedMusic);
-});
-
-app.get('/api/genres/:rank', (req, res) => {
-    const music = rankedMusic.find(r => r.rank === parseInt(req.params.rank));
-    if(!music) return res.status(404).send(`Rank: ${req.params.rank} was not found!`);
-    res.send(music);
-});
-
-app.post('/api/genres', (req, res) => {
-    const {error} = validateRank(req.body);
-    if(error) return res.status(400).send(error.details[0].message);
-    let music = {
-        rank : rankedMusic.length+1,
-        genre : req.body.genre
-    };
-    rankedMusic.push(music);
-    res.send(music);
-});
-
-app.put('/api/genres/:rank', (req, res) => {
-    const music = rankedMusic.find(r => r.rank === parseInt(req.params.rank));
-    if(!music) return res.status(404).send(`Rank: ${req.params.rank} was not found!`);
-
-    const {error} = validateRank(req.body);
-    if(error) return res.status(400).send(error.details[0].message);  
-
-    music.genre = req.body.genre;
-    res.send(music);
-});
-
- app.delete('/api/genres/:rank', (req, res) =>{
-    const music = rankedMusic.find(r => r.rank === parseInt(req.params.rank));
-    if(!music) return res.status(404).send(`Rank: ${req.params.rank} was not found!`);
-
-    const index = rankedMusic.indexOf(music);
-    rankedMusic.splice(index, 1);
-    res.send(music);
- });
-
-function validateRank(music){
-    const schema = {
-        genre : Joi.string().min(3).required()
-    }
-    return Joi.validate(music, schema);
-};
+if ( app.get('env') === 'development' ) {
+    app.use(morgan('tiny'));
+    debug('Morgan Enabled...');
+}
 
 const port = process.env.PORT || 4000;
 app.listen(port, () => console.log(`Listening to PORT ${port}`));

@@ -1,0 +1,1 @@
+Inside the public folder (static) readme.txt
